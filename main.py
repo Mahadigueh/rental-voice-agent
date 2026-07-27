@@ -71,8 +71,7 @@ async def handle_incoming_call(request: Request):
 
     connect = Connect()
     # Mets ici ton URL cloudflared actuelle
-    connect.stream(url="wss://checkout-december-bits-zen.trycloudflare.com/media-stream",
-    track="inbound_track")
+    connect.stream(url="wss://rental-voice-agent.onrender.com/media-stream")
     response.append(connect)
 
     twiml_content = str(response)
