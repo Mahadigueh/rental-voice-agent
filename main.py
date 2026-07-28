@@ -225,7 +225,6 @@ async def transfer_call(call_sid: str, manager: str):
         twilio_client.calls(call_sid).update(
             twiml=f"""
             <Response>
-                <Say language="fr-CA" voice="Polly.Gabrielle">Je vous transfère vers le gestionnaire.</Say>
                 <Dial>{to_number}</Dial>
             </Response>
             """
