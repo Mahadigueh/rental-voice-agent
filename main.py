@@ -111,7 +111,7 @@ async def handle_media_stream(websocket: WebSocket):
 
                     if event_type == "session.updated" and not session_ready:
                         session_ready = True
-                        print(">>> Session ready, sending legal greeting + presentation...")
+                        print(">>> Session ready, sending greeting...")
                         await send_initial_conversation_item(openai_ws)
 
                     if event_type == "response.output_audio.delta" and "delta" in response:
@@ -204,16 +204,15 @@ async def send_initial_conversation_item(openai_ws):
             "content": [{
                 "type": "input_text",
                 "text": (
-                    "Parle maintenant au locataire. Dis exactement ce texte, sans ajouter « D’accord » ni aucune autre phrase avant : "
-                    "Bonjour. Cet appel peut être enregistré pour des fins de qualité de service et de suivi. "
-                    "Si vous n’acceptez pas l’enregistrement, veuillez raccrocher. "
-                    "Je suis l’assistant de gestion locative. Comment puis-je vous aider aujourd’hui ?"
+                    "Dis uniquement cette phrase au locataire, sans rien ajouter avant ni après : "
+                    "Bonjour, je suis l’assistant de gestion locative. Cet appel peut être enregistré. "
+                    "Comment puis-je vous aider ?"
                 )
             }]
         }
     }))
     await openai_ws.send(json.dumps({"type": "response.create"}))
-    print(">>> Legal greeting + presentation sent")
+    print(">>> Greeting sent")
 
 async def transfer_call(call_sid: str, manager: str):
     to_number = MANAGERS.get(manager.lower())
@@ -226,7 +225,7 @@ async def transfer_call(call_sid: str, manager: str):
         twilio_client.calls(call_sid).update(
             twiml=f"""
             <Response>
-                <Say language="fr-CA" voice="Polly.Gabrielle">Je vous transfère maintenant vers le gestionnaire.</Say>
+                <Say language="fr-CA" voice="Polly.Gabrielle">Je vous transfère vers le gestionnaire.</Say>
                 <Dial>{to_number}</Dial>
             </Response>
             """
