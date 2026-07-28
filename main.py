@@ -48,7 +48,7 @@ async def handle_incoming_call(request: Request):
 
     connect = Connect()
     # Mets ici l'URL de ton service Railway une fois qu'il sera en ligne
-    connect.stream(url="wss://neuter-power-enduring.ngrok-free.dev/media-stream")
+    connect.stream(url="wss://rental-voice-agent-production.up.railway.app/media-stream")
     response.append(connect)
 
     return HTMLResponse(content=str(response), media_type="application/xml")
