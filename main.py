@@ -20,7 +20,6 @@ TEMPERATURE = float(os.getenv("TEMPERATURE", 0.6))
 
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# Numéros des gestionnaires (Anthony = ton numéro de test)
 MANAGERS = {
     "anthony": "+13673809016",
     "martin": "+13673809016",
@@ -61,15 +60,13 @@ async def handle_incoming_call(request: Request):
     print(">>> /incoming-call reçu")
     response = VoiceResponse()
     
-    # Message d'accueil légal (Loi 25)
+    # Message d'accueil plus court
     response.say(
-        "Bonjour. Cet appel peut être enregistré pour des fins de qualité de service et de suivi. "
-        "Si vous n’acceptez pas l’enregistrement, veuillez raccrocher. "
-        "Un instant s’il vous plaît, je vous mets en communication avec notre assistant.",
+        "Bonjour. Cet appel peut être enregistré. Un instant s’il vous plaît.",
         voice="Polly.Gabrielle",
         language="fr-CA"
     )
-    response.pause(length=1)
+    response.pause(length=0.5)
 
     connect = Connect()
     connect.stream(url="wss://rental-voice-agent-production.up.railway.app/media-stream")
@@ -135,7 +132,6 @@ async def handle_media_stream(websocket: WebSocket):
                             "media": {"payload": audio_payload}
                         })
 
-                    # Gestion du transfert
                     if event_type == "response.function_call_arguments.done":
                         try:
                             function_name = response.get("name")
