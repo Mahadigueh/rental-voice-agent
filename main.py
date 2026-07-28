@@ -196,7 +196,6 @@ async def initialize_session(openai_ws):
 
 async def send_initial_conversation_item(openai_ws):
     await asyncio.sleep(0.4)
-    # L'IA dit elle-même le message légal + se présente
     await openai_ws.send(json.dumps({
         "type": "conversation.item.create",
         "item": {
@@ -205,10 +204,10 @@ async def send_initial_conversation_item(openai_ws):
             "content": [{
                 "type": "input_text",
                 "text": (
-                    "Dis exactement ceci au locataire, de façon claire et professionnelle : "
-                    "« Bonjour. Cet appel peut être enregistré pour des fins de qualité de service et de suivi. "
+                    "Parle maintenant au locataire. Dis exactement ce texte, sans ajouter « D’accord » ni aucune autre phrase avant : "
+                    "Bonjour. Cet appel peut être enregistré pour des fins de qualité de service et de suivi. "
                     "Si vous n’acceptez pas l’enregistrement, veuillez raccrocher. "
-                    "Je suis l’assistant de gestion locative. Comment puis-je vous aider aujourd’hui ? »"
+                    "Je suis l’assistant de gestion locative. Comment puis-je vous aider aujourd’hui ?"
                 )
             }]
         }
