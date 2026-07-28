@@ -7,13 +7,25 @@ from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import HTMLResponse
 from fastapi.websockets import WebSocketDisconnect
 from twilio.twiml.voice_response import VoiceResponse, Connect
+from twilio.rest import Client
 from dotenv import load_dotenv
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 PORT = int(os.getenv("PORT", 5050))
 TEMPERATURE = float(os.getenv("TEMPERATURE", 0.6))
+
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+# Numéros des gestionnaires (Anthony = ton numéro de test)
+MANAGERS = {
+    "anthony": "+13673809016",
+    "martin": "+13673809016",
+    "jessica": "+13673809016"
+}
 
 print("========== VARIABLES D'ENVIRONNEMENT ==========")
 print(f"OPENAI_API_KEY : {'OK' if OPENAI_API_KEY else 'MANQUANTE'}")
@@ -23,8 +35,19 @@ print("===============================================")
 SYSTEM_MESSAGE = """
 Tu es un assistant vocal professionnel et poli pour une entreprise de gestion locative au Québec.
 Tu parles exclusivement en français québécois, de façon claire, calme et professionnelle.
-Les gestionnaires sont Anthony (maintenance), Martin John Wheeler et Jessica Gilbert.
-Commence toujours par te présenter brièvement.
+
+Règles importantes :
+- Tu réponds aux appels des locataires.
+- Les gestionnaires sont :
+  • Anthony : gestionnaire principal, responsable de la maintenance et de la supervision.
+  • Martin John Wheeler : loyers, visites, plaintes, location, état des lieux.
+  • Jessica Gilbert : loyers, visites, plaintes, location, état des lieux.
+- Si la demande concerne une urgence de maintenance (fuite d’eau, pas d’électricité, chauffage en panne, etc.), priorise Anthony.
+- Pour les questions de loyer, bail, visite ou plainte, oriente vers Martin ou Jessica.
+- Tu peux créer un ticket de maintenance verbalement et confirmer que c’est enregistré.
+- Si la demande est trop complexe ou si le locataire insiste, utilise l’outil transfer_to_manager pour le transférer.
+- Sois concis. Ne parle pas trop longtemps.
+- Commence toujours par te présenter brièvement après le message d’accueil.
 """
 
 app = FastAPI()
@@ -37,8 +60,17 @@ async def index():
 async def handle_incoming_call(request: Request):
     print(">>> /incoming-call reçu")
     response = VoiceResponse()
+    
+    # Message d'accueil légal (Loi 25)
+    response.say(
+        "Bonjour. Cet appel peut être enregistré pour des fins de qualité de service et de suivi. "
+        "Si vous n’acceptez pas l’enregistrement, veuillez raccrocher. "
+        "Un instant s’il vous plaît, je vous mets en communication avec notre assistant.",
+        voice="Polly.Gabrielle",
+        language="fr-CA"
+    )
+    response.pause(length=1)
 
-    # Version minimale pour le test (sans Say ni Pause)
     connect = Connect()
     connect.stream(url="wss://rental-voice-agent-production.up.railway.app/media-stream")
     response.append(connect)
@@ -57,10 +89,11 @@ async def handle_media_stream(websocket: WebSocket):
     ) as openai_ws:
 
         stream_sid = None
+        call_sid = None
         session_ready = False
 
         async def receive_from_twilio():
-            nonlocal stream_sid
+            nonlocal stream_sid, call_sid
             try:
                 async for message in websocket.iter_text():
                     data = json.loads(message)
@@ -71,7 +104,9 @@ async def handle_media_stream(websocket: WebSocket):
                         }))
                     elif data["event"] == "start":
                         stream_sid = data["start"]["streamSid"]
+                        call_sid = data["start"].get("callSid")
                         print(f"Stream started: {stream_sid}")
+                        print(f"Call SID: {call_sid}")
             except WebSocketDisconnect:
                 print("Client disconnected")
                 if openai_ws.state.name == "OPEN":
@@ -99,6 +134,28 @@ async def handle_media_stream(websocket: WebSocket):
                             "streamSid": stream_sid,
                             "media": {"payload": audio_payload}
                         })
+
+                    # Gestion du transfert
+                    if event_type == "response.function_call_arguments.done":
+                        try:
+                            function_name = response.get("name")
+                            arguments = json.loads(response.get("arguments", "{}"))
+                            print(f">>> Function call: {function_name}")
+                            print(f">>> Arguments: {arguments}")
+
+                            if function_name == "transfer_to_manager":
+                                manager = arguments.get("manager", "anthony")
+                                reason = arguments.get("reason", "")
+                                print(f">>> Transfert demandé vers {manager} | Raison: {reason}")
+
+                                if call_sid:
+                                    success = await transfer_call(call_sid, manager)
+                                    print(f">>> Résultat transfert: {success}")
+                                else:
+                                    print(">>> ERREUR: call_sid est None")
+                        except Exception as e:
+                            print(f"Erreur outil: {e}")
+
             except Exception as e:
                 print(f"Error in send_to_twilio: {e}")
 
@@ -111,6 +168,29 @@ async def initialize_session(openai_ws):
         "session": {
             "type": "realtime",
             "instructions": SYSTEM_MESSAGE,
+            "tools": [
+                {
+                    "type": "function",
+                    "name": "transfer_to_manager",
+                    "description": "Transférer l'appel vers un gestionnaire. Utilise cette fonction pour les urgences maintenance (Anthony) ou quand le locataire veut parler à un humain.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "manager": {
+                                "type": "string",
+                                "enum": ["anthony", "martin", "jessica"],
+                                "description": "Le gestionnaire vers qui transférer"
+                            },
+                            "reason": {
+                                "type": "string",
+                                "description": "Raison du transfert"
+                            }
+                        },
+                        "required": ["manager"]
+                    }
+                }
+            ],
+            "tool_choice": "auto",
             "audio": {
                 "input": {
                     "format": {"type": "audio/pcmu"},
@@ -141,6 +221,27 @@ async def send_initial_conversation_item(openai_ws):
     }))
     await openai_ws.send(json.dumps({"type": "response.create"}))
     print(">>> response.create sent")
+
+async def transfer_call(call_sid: str, manager: str):
+    to_number = MANAGERS.get(manager.lower())
+    if not to_number:
+        print(f"Gestionnaire inconnu: {manager}")
+        return False
+
+    try:
+        print(f">>> Transfert de {call_sid} vers {manager} ({to_number})")
+        twilio_client.calls(call_sid).update(
+            twiml=f"""
+            <Response>
+                <Say language="fr-CA" voice="Polly.Gabrielle">Je vous transfère maintenant vers le gestionnaire.</Say>
+                <Dial>{to_number}</Dial>
+            </Response>
+            """
+        )
+        return True
+    except Exception as e:
+        print(f"Erreur lors du transfert: {e}")
+        return False
 
 if __name__ == "__main__":
     import uvicorn
