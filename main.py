@@ -37,17 +37,9 @@ async def index():
 async def handle_incoming_call(request: Request):
     print(">>> /incoming-call reçu")
     response = VoiceResponse()
-    response.say(
-        "Bonjour. Cet appel peut être enregistré pour des fins de qualité de service et de suivi. "
-        "Si vous n’acceptez pas l’enregistrement, veuillez raccrocher. "
-        "Un instant s’il vous plaît, je vous mets en communication avec notre assistant.",
-        voice="Polly.Gabrielle",
-        language="fr-CA"
-    )
-    response.pause(length=1)
 
+    # Version minimale pour le test (sans Say ni Pause)
     connect = Connect()
-    # Mets ici l'URL de ton service Railway une fois qu'il sera en ligne
     connect.stream(url="wss://rental-voice-agent-production.up.railway.app/media-stream")
     response.append(connect)
 
