@@ -46,7 +46,6 @@ Règles importantes :
 - Tu peux créer un ticket de maintenance verbalement et confirmer que c’est enregistré.
 - Si la demande est trop complexe ou si le locataire insiste, utilise l’outil transfer_to_manager pour le transférer.
 - Sois concis. Ne parle pas trop longtemps.
-- Commence toujours par te présenter brièvement après le message d’accueil.
 """
 
 app = FastAPI()
@@ -59,15 +58,8 @@ async def index():
 async def handle_incoming_call(request: Request):
     print(">>> /incoming-call reçu")
     response = VoiceResponse()
-    
-    # Message d'accueil plus court
-    response.say(
-        "Bonjour. Cet appel peut être enregistré. Un instant s’il vous plaît.",
-        voice="Polly.Gabrielle",
-        language="fr-CA"
-    )
-    response.pause(length=0.5)
 
+    # TwiML minimal pour que le WebSocket s'ouvre correctement
     connect = Connect()
     connect.stream(url="wss://rental-voice-agent-production.up.railway.app/media-stream")
     response.append(connect)
@@ -119,7 +111,7 @@ async def handle_media_stream(websocket: WebSocket):
 
                     if event_type == "session.updated" and not session_ready:
                         session_ready = True
-                        print(">>> Session ready, sending initial greeting...")
+                        print(">>> Session ready, sending legal greeting + presentation...")
                         await send_initial_conversation_item(openai_ws)
 
                     if event_type == "response.output_audio.delta" and "delta" in response:
@@ -203,7 +195,8 @@ async def initialize_session(openai_ws):
     await openai_ws.send(json.dumps(session_update))
 
 async def send_initial_conversation_item(openai_ws):
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(0.4)
+    # L'IA dit elle-même le message légal + se présente
     await openai_ws.send(json.dumps({
         "type": "conversation.item.create",
         "item": {
@@ -211,12 +204,17 @@ async def send_initial_conversation_item(openai_ws):
             "role": "user",
             "content": [{
                 "type": "input_text",
-                "text": "Présente-toi brièvement en tant qu’assistant de gestion locative et demande comment tu peux aider."
+                "text": (
+                    "Dis exactement ceci au locataire, de façon claire et professionnelle : "
+                    "« Bonjour. Cet appel peut être enregistré pour des fins de qualité de service et de suivi. "
+                    "Si vous n’acceptez pas l’enregistrement, veuillez raccrocher. "
+                    "Je suis l’assistant de gestion locative. Comment puis-je vous aider aujourd’hui ? »"
+                )
             }]
         }
     }))
     await openai_ws.send(json.dumps({"type": "response.create"}))
-    print(">>> response.create sent")
+    print(">>> Legal greeting + presentation sent")
 
 async def transfer_call(call_sid: str, manager: str):
     to_number = MANAGERS.get(manager.lower())
