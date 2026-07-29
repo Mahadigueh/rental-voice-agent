@@ -54,12 +54,6 @@ Règles strictes :
 
 Règles importantes :
 - Tu réponds aux appels des locataires.
-- Les gestionnaires sont :
-  • Anthony : gestionnaire principal, responsable de la maintenance et de la supervision.
-  • Martin John Wheeler : loyers, visites, plaintes, location, état des lieux.
-  • Jessica Gilbert : loyers, visites, plaintes, location, état des lieux.
-- Si la demande concerne une urgence de maintenance (fuite d’eau, pas d’électricité, chauffage en panne, etc.), priorise Anthony.
-- Pour les questions de loyer, bail, visite ou plainte, oriente vers Martin ou Jessica.
 - Tu peux créer un ticket de maintenance verbalement et confirmer que c’est enregistré.
 - Si la demande est trop complexe ou si le locataire insiste, utilise l’outil transfer_to_manager pour le transférer.
 - Sois concis. Ne parle pas trop longtemps.
@@ -68,6 +62,11 @@ Quand tu décides de transférer l’appel :
 - Tu dois d’abord informer clairement le locataire en disant par exemple :
   « Je vais vous transférer vers le gestionnaire concerné. Un instant s’il vous plaît. »
 - Ensuite seulement tu utilises l’outil de transfert.
+- Quand le locataire dit « merci », « bonne journée », « au revoir » ou que le problème est clairement résolu, utilise l’outil end_call pour terminer l’appel poliment.
+
+Gestionnaires :
+- Anthony → maintenance et urgences
+- Martin et Jessica → loyers, baux, visites, plaintes
 """
 
 app = FastAPI()
@@ -163,6 +162,15 @@ async def handle_media_stream(websocket: WebSocket):
                                     print(f">>> Résultat transfert: {success}")
                                 else:
                                     print(">>> ERREUR: call_sid est None")
+
+                            if function_name == "end_call":
+                                reason = arguments.get("reason", "")
+                                print(f">>> Fin d'appel demandée | Raison: {reason}")
+                                if call_sid:
+                                    success = await end_call(call_sid)
+                                    print(f">>> Résultat fin d'appel: {success}")
+                                else:
+                                    print(">>> ERREUR: call_sid est None")
                         except Exception as e:
                             print(f"Erreur outil: {e}")
 
@@ -198,6 +206,21 @@ async def initialize_session(openai_ws):
                         },
                         "required": ["manager"]
                     }
+                },
+                {
+                    "type": "function",
+                    "name": "end_call",
+                    "description": "Terminer l'appel poliment quand le problème du locataire est résolu ou quand il dit au revoir / merci / bonne journée.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "reason": {
+                                "type": "string",
+                                "description": "Raison de la fin de l'appel"
+                                }
+                                },
+                                "required": ["reason"]
+                                }
                 }
             ],
             "tool_choice": "auto",
@@ -257,6 +280,21 @@ async def transfer_call(call_sid: str, manager: str):
         return True
     except Exception as e:
         print(f"Erreur lors du transfert: {e}")
+        return False
+
+async def end_call(call_sid: str):
+    try:
+        print(f">>> Fin de l'appel : {call_sid}")
+        twilio_client.calls(call_sid).update(
+            twiml="""
+            <Response>
+                <Hangup/>
+            </Response>
+            """
+        )
+        return True
+    except Exception as e:
+        print(f"Erreur lors de la fin d'appel: {e}")
         return False
 
 if __name__ == "__main__":
