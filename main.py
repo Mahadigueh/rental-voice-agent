@@ -43,6 +43,9 @@ Règles strictes :
 - Si tu n’entends pas clairement une demande, dis simplement : « Je n’ai pas bien compris, pouvez-vous répéter s’il vous plaît ? »
 - Ne commence jamais une phrase par « D’accord », « Bien sûr », « Je vais... » de façon automatique.
 - Sois très concis.
+- Tu ne transfères JAMAIS juste parce que tu n’as pas compris.
+- Si tu ne comprends pas la demande du locataire après 2 essais, dis poliment que tu n’as pas bien compris et utilise l’outil end_call.
+- Si le locataire répond de façon confuse, incorrecte ou ne répond plus clairement, n’essaie pas de transférer. Termine plutôt l’appel poliment avec end_call.
 - Tu ne transfères PAS immédiatement.
 - Tu dois d’abord comprendre le problème et le confirmer au locataire.
 - Essaie d’abord d’aider toi-même avant de transférer.
@@ -259,7 +262,7 @@ async def send_initial_conversation_item(openai_ws):
             "role": "user",
             "content": [{
                 "type": "input_text",
-                "text": "Dis uniquement : Bonjour, je suis l’assistant de gestion locative de la société MIG DIRECT. Comment puis-je vous aider ?"
+                "text": "Dis uniquement : Bonjour, je suis l’assistant de gestion locative de l'entreprise CHOUKRI IBRAHIM DIRECT. Comment puis-je vous aider ?"
             }]
         }
     }))
