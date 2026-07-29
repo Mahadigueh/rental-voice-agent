@@ -186,8 +186,31 @@ async def handle_media_stream(websocket: WebSocket):
                             if function_name == "end_call":
                                 reason = arguments.get("reason", "")
                                 print(f">>> Fin d'appel demandée | Raison: {reason}")
+
                                 if call_sid:
-                                    await asyncio.sleep(3.0)
+                                    # 1. Annuler la réponse en cours
+                                    await openai_ws.send(json.dumps({
+                                        "type": "response.cancel"
+                                    }))
+
+                                    # 2. Forcer le message d'au revoir
+                                    await openai_ws.send(json.dumps({
+                                        "type": "conversation.item.create",
+                                        "item": {
+                                            "type": "message",
+                                            "role": "user",
+                                            "content": [{
+                                                "type": "input_text",
+                                                "text": "Dis exactement et uniquement : Je vous en prie, bonne journée !"
+                                            }]
+                                        }
+                                    }))
+                                    await openai_ws.send(json.dumps({"type": "response.create"}))
+
+                                    # 3. Attendre qu'elle finisse de parler
+                                    await asyncio.sleep(3.5)
+
+                                    # 4. Raccrocher
                                     success = await end_call(call_sid)
                                     print(f">>> Résultat fin d'appel: {success}")
                                 else:
