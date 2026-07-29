@@ -47,10 +47,10 @@ Aide et transfert :
 - Essaie d’abord d’aider toi-même.
 - Pose maximum 1 ou 2 questions pour clarifier.
 - Tu ne transfères QUE dans ces cas :
-  1. Vraie urgence (fuite importante, pas d’électricité, pas de chauffage, sécurité)
+  1. Vraie urgence
   2. Le locataire demande explicitement à parler à un gestionnaire
   3. Tu as bien compris le problème et tu ne peux vraiment pas aider
-- Si tu ne comprends pas après 2 essais, ou si le locataire répond de façon confuse → termine l’appel avec end_call (ne transfère pas).
+- Si tu ne comprends pas après 3 essais, ou si le locataire répond de façon confuse → termine l’appel avec end_call (ne transfère pas).
 
 Quand tu transfères :
 - Dis d’abord : « Je vais vous transférer vers le gestionnaire concerné. Un instant s’il vous plaît. »
@@ -251,7 +251,7 @@ async def send_initial_conversation_item(openai_ws):
             "role": "user",
             "content": [{
                 "type": "input_text",
-                "text": "Dis uniquement : Bonjour, je suis l’assistant de gestion locative de l'entreprise CHOUKRI IBRAHIM DIRECT. Comment puis-je vous aider ?"
+                "text": "Dis uniquement : Bonjour, je suis l’assistante de gestion locative de l'entreprise MIG DIRECT. Comment puis-je vous aider ?"
             }]
         }
     }))
