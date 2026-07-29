@@ -155,7 +155,12 @@ async def handle_media_stream(websocket: WebSocket):
                                 print(f">>> Transfert demandé vers {manager} | Raison: {reason}")
 
                                 if call_sid:
-                                    # Force l'annonce du transfert
+                                    # 1. Annuler la réponse en cours
+                                    await openai_ws.send(json.dumps({
+                                        "type": "response.cancel"
+                                    }))
+
+                                    # 2. Forcer le message de transfert
                                     await openai_ws.send(json.dumps({
                                         "type": "conversation.item.create",
                                         "item": {
@@ -163,15 +168,16 @@ async def handle_media_stream(websocket: WebSocket):
                                             "role": "user",
                                             "content": [{
                                                 "type": "input_text",
-                                                "text": "Dis exactement : Je vais vous transférer vers le gestionnaire concerné. Un instant s’il vous plaît."
+                                                "text": "Dis exactement et uniquement : Je vais vous transférer vers le gestionnaire concerné. Un instant s’il vous plaît."
                                             }]
                                         }
                                     }))
                                     await openai_ws.send(json.dumps({"type": "response.create"}))
 
-                                    # Attendre qu'elle finisse de parler
-                                    await asyncio.sleep(4.5)
+                                    # 3. Attendre qu'elle finisse de parler (plus long)
+                                    await asyncio.sleep(5.5)
 
+                                    # 4. Transférer
                                     success = await transfer_call(call_sid, manager)
                                     print(f">>> Résultat transfert: {success}")
                                 else:
