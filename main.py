@@ -254,12 +254,10 @@ async def send_initial_conversation_item(openai_ws):
             "role": "user",
             "content": [{
                 "type": "input_text",
-                "text": "Dis uniquement : Bonjour, je suis l’assistant de gestion locative. Comment puis-je vous aider ?"
+                "text": "Dis uniquement : Bonjour, je suis l’assistant de gestion locative de la société MIG DIRECT. Comment puis-je vous aider ?"
             }]
         }
     }))
-    await openai_ws.send(json.dumps({"type": "response.create"}))
-    print(">>> Greeting sent")
     await openai_ws.send(json.dumps({"type": "response.create"}))
     print(">>> Greeting sent")
 
