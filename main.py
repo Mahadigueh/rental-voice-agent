@@ -48,10 +48,10 @@ Aide et transfert :
 - Pose maximum 1 ou 2 questions pour clarifier.
 - Si ce n’est pas une urgence, tu peux créer un billet d’intervention (ticket de maintenance) verbalement et confirmer au locataire que c’est enregistré.
 - Tu ne transfères QUE dans ces cas :
-  1. Vraie urgence
+  1. Vraie urgence (fuite importante, pas d’électricité, pas de chauffage, sécurité)
   2. Le locataire demande explicitement à parler à un gestionnaire
   3. Tu as bien compris le problème et tu ne peux vraiment pas aider
-- Si tu ne comprends pas après 3 essais, ou si le locataire répond de façon confuse → termine l’appel avec end_call (ne transfère pas).
+- Si tu ne comprends pas après 2 essais, ou si le locataire répond de façon confuse → termine l’appel avec end_call (ne transfère pas).
 
 Quand tu transfères :
 - Dis d’abord : « Je vais vous transférer vers le gestionnaire concerné. Un instant s’il vous plaît. »
@@ -66,6 +66,7 @@ Gestionnaires :
 - Anthony → maintenance et urgences
 - Martin et Jessica → loyers, baux, visites, plaintes
 """
+
 app = FastAPI()
 
 @app.get("/")
@@ -77,7 +78,6 @@ async def handle_incoming_call(request: Request):
     print(">>> /incoming-call reçu")
     response = VoiceResponse()
 
-    # TwiML minimal pour que le WebSocket s'ouvre correctement
     connect = Connect()
     connect.stream(url="wss://rental-voice-agent-production.up.railway.app/media-stream")
     response.append(connect)
@@ -155,7 +155,23 @@ async def handle_media_stream(websocket: WebSocket):
                                 print(f">>> Transfert demandé vers {manager} | Raison: {reason}")
 
                                 if call_sid:
-                                    await asyncio.sleep(10.0)
+                                    # Force l'annonce du transfert
+                                    await openai_ws.send(json.dumps({
+                                        "type": "conversation.item.create",
+                                        "item": {
+                                            "type": "message",
+                                            "role": "user",
+                                            "content": [{
+                                                "type": "input_text",
+                                                "text": "Dis exactement : Je vais vous transférer vers le gestionnaire concerné. Un instant s’il vous plaît."
+                                            }]
+                                        }
+                                    }))
+                                    await openai_ws.send(json.dumps({"type": "response.create"}))
+
+                                    # Attendre qu'elle finisse de parler
+                                    await asyncio.sleep(4.5)
+
                                     success = await transfer_call(call_sid, manager)
                                     print(f">>> Résultat transfert: {success}")
                                 else:
@@ -165,11 +181,12 @@ async def handle_media_stream(websocket: WebSocket):
                                 reason = arguments.get("reason", "")
                                 print(f">>> Fin d'appel demandée | Raison: {reason}")
                                 if call_sid:
-                                    await asyncio.sleep(10.0)
+                                    await asyncio.sleep(3.0)
                                     success = await end_call(call_sid)
                                     print(f">>> Résultat fin d'appel: {success}")
                                 else:
                                     print(">>> ERREUR: call_sid est None")
+
                         except Exception as e:
                             print(f"Erreur outil: {e}")
 
@@ -216,28 +233,28 @@ async def initialize_session(openai_ws):
                             "reason": {
                                 "type": "string",
                                 "description": "Raison de la fin de l'appel"
-                                }
-                                },
-                                "required": ["reason"]
-                                }
+                            }
+                        },
+                        "required": ["reason"]
+                    }
                 }
             ],
             "tool_choice": "auto",
             "audio": {
-    "input": {
-        "format": {"type": "audio/pcmu"},
-        "turn_detection": {
-            "type": "server_vad",
-            "threshold": 0.7,               # plus élevé = moins sensible au bruit
-            "prefix_padding_ms": 300,
-            "silence_duration_ms": 800      # plus long = elle attend plus avant de répondre
-        }
-    },
-    "output": {
-        "format": {"type": "audio/pcmu"},
-        "voice": "alloy"
-    }
-}
+                "input": {
+                    "format": {"type": "audio/pcmu"},
+                    "turn_detection": {
+                        "type": "server_vad",
+                        "threshold": 0.7,
+                        "prefix_padding_ms": 300,
+                        "silence_duration_ms": 800
+                    }
+                },
+                "output": {
+                    "format": {"type": "audio/pcmu"},
+                    "voice": "alloy"
+                }
+            }
         }
     }
     print(">>> Sending session.update...")
@@ -252,7 +269,7 @@ async def send_initial_conversation_item(openai_ws):
             "role": "user",
             "content": [{
                 "type": "input_text",
-                "text": "Dis uniquement : Bonjour, je suis l’assistante de gestion locative de l'entreprise MIG DIRECT. Comment puis-je vous aider ?"
+                "text": "Dis uniquement : Bonjour, je suis l’assistant de gestion locative. Comment puis-je vous aider ?"
             }]
         }
     }))
