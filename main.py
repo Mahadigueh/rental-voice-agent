@@ -46,6 +46,7 @@ Comportement général :
 Aide et transfert :
 - Essaie d’abord d’aider toi-même.
 - Pose maximum 1 ou 2 questions pour clarifier.
+- Si ce n’est pas une urgence, tu peux créer un billet d’intervention (ticket de maintenance) verbalement et confirmer au locataire que c’est enregistré.
 - Tu ne transfères QUE dans ces cas :
   1. Vraie urgence
   2. Le locataire demande explicitement à parler à un gestionnaire
@@ -164,7 +165,7 @@ async def handle_media_stream(websocket: WebSocket):
                                 reason = arguments.get("reason", "")
                                 print(f">>> Fin d'appel demandée | Raison: {reason}")
                                 if call_sid:
-                                    await asyncio.sleep(10.3)
+                                    await asyncio.sleep(10.0)
                                     success = await end_call(call_sid)
                                     print(f">>> Résultat fin d'appel: {success}")
                                 else:
