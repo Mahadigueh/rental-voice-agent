@@ -158,6 +158,7 @@ async def handle_media_stream(websocket: WebSocket):
                                 print(f">>> Transfert demandé vers {manager} | Raison: {reason}")
 
                                 if call_sid:
+                                    await asyncio.sleep(3.5)
                                     success = await transfer_call(call_sid, manager)
                                     print(f">>> Résultat transfert: {success}")
                                 else:
