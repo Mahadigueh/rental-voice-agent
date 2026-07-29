@@ -168,6 +168,7 @@ async def handle_media_stream(websocket: WebSocket):
                                 reason = arguments.get("reason", "")
                                 print(f">>> Fin d'appel demandée | Raison: {reason}")
                                 if call_sid:
+                                    await asyncio.sleep(0.3)
                                     success = await end_call(call_sid)
                                     print(f">>> Résultat fin d'appel: {success}")
                                 else:
