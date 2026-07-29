@@ -35,6 +35,14 @@ SYSTEM_MESSAGE = """
 Tu es un assistant vocal professionnel et poli pour une entreprise de gestion locative au Québec.
 Tu parles exclusivement en français québécois, de façon claire, calme et professionnelle.
 
+Règles strictes :
+- Tu ne parles QUE quand le locataire a fini de parler.
+- Tu ne te répètes JAMAIS.
+- Tu ignores complètement les bruits de fond, les silences, les ronflements et les bruits parasites.
+- Si tu n’entends pas clairement une demande, dis simplement : « Je n’ai pas bien compris, pouvez-vous répéter s’il vous plaît ? »
+- Ne commence jamais une phrase par « D’accord », « Bien sûr », « Je vais... » de façon automatique.
+- Sois très concis.
+
 Règles importantes :
 - Tu réponds aux appels des locataires.
 - Les gestionnaires sont :
@@ -180,22 +188,27 @@ async def initialize_session(openai_ws):
             ],
             "tool_choice": "auto",
             "audio": {
-                "input": {
-                    "format": {"type": "audio/pcmu"},
-                    "turn_detection": {"type": "server_vad"}
-                },
-                "output": {
-                    "format": {"type": "audio/pcmu"},
-                    "voice": "alloy"
-                }
-            }
+    "input": {
+        "format": {"type": "audio/pcmu"},
+        "turn_detection": {
+            "type": "server_vad",
+            "threshold": 0.7,               # plus élevé = moins sensible au bruit
+            "prefix_padding_ms": 300,
+            "silence_duration_ms": 800      # plus long = elle attend plus avant de répondre
+        }
+    },
+    "output": {
+        "format": {"type": "audio/pcmu"},
+        "voice": "alloy"
+    }
+}
         }
     }
     print(">>> Sending session.update...")
     await openai_ws.send(json.dumps(session_update))
 
 async def send_initial_conversation_item(openai_ws):
-    await asyncio.sleep(0.4)
+    await asyncio.sleep(0.5)
     await openai_ws.send(json.dumps({
         "type": "conversation.item.create",
         "item": {
@@ -203,14 +216,12 @@ async def send_initial_conversation_item(openai_ws):
             "role": "user",
             "content": [{
                 "type": "input_text",
-                "text": (
-                    "Dis uniquement cette phrase au locataire, sans rien ajouter avant ni après : "
-                    "Bonjour, je suis l’assistant de gestion locative. Cet appel peut être enregistré. "
-                    "Comment puis-je vous aider ?"
-                )
+                "text": "Dis uniquement : Bonjour, je suis l’assistant de gestion locative. Comment puis-je vous aider ?"
             }]
         }
     }))
+    await openai_ws.send(json.dumps({"type": "response.create"}))
+    print(">>> Greeting sent")
     await openai_ws.send(json.dumps({"type": "response.create"}))
     print(">>> Greeting sent")
 
