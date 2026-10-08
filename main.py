@@ -3,13 +3,26 @@ import json
 import base64
 import asyncio
 import websockets
-from lire_logements import get_listings
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import HTMLResponse
 from fastapi.websockets import WebSocketDisconnect
 from twilio.twiml.voice_response import VoiceResponse, Connect
 from twilio.rest import Client
 from dotenv import load_dotenv
+
+from lire_logements import get_listings
+
+LISTINGS = []
+
+def refresh_listings():
+    global LISTINGS
+    try:
+        LISTINGS = get_listings()
+        print(f">>> {len(LISTINGS)} logements en mémoire")
+    except Exception as e:
+        print(">>> Lecture logements échouée:", e)
+
+refresh_listings()
 
 load_dotenv()
 
@@ -223,37 +236,37 @@ async def handle_media_stream(websocket: WebSocket):
                                 else:
                                     print(">>> ERREUR: call_sid est None")
 
-                                    if function_name == "rechercher_logements":
-                                        ville = arguments.get("ville", "")
-                                        type_logement = arguments.get("type_logement", "")
-                                        call_id = response.get("call_id")
-                                        print(">>> Recherche logements", ville, type_logement, "call_id:", call_id)
+                            if function_name == "rechercher_logements":
+                                ville = arguments.get("ville", "")
+                                type_logement = arguments.get("type_logement", "")
+                                call_id = response.get("call_id")
+                                print(">>> Recherche logements", ville, type_logement, "call_id:", call_id)
 
-                                        try:
-                                            rows = await asyncio.wait_for(asyncio.to_thread(get_listings), timeout=8)
-                                            if ville:
-                                                rows = [r for r in rows if ville.lower() in r["immeuble"].lower()]
-                                            if type_logement:
-                                                cherche = type_logement.replace(" ", "")
-                                                rows = [r for r in rows if cherche in r["type"].replace(" ", "")]
-                                            rows = rows[:2]
-                                            output = "Aucun logement correspondant." if not rows else " | ".join(
-                                                f"{r['immeuble']}, {r['type']}, {r['prix']} dollars par mois" for r in rows
-                                            )
-                                        except Exception as e:
-                                            print("Erreur logements:", e)
-                                            output = "Je ne peux pas lire les annonces pour le moment."
+                                try:
+                                    rows = LISTINGS
+                                    if ville:
+                                        rows = [r for r in rows if ville.lower() in r["immeuble"].lower()]
+                                    if type_logement:
+                                        cherche = type_logement.replace(" ", "")
+                                        rows = [r for r in rows if cherche in r["type"].replace(" ", "")]
+                                    rows = rows[:2]
+                                    output = "Aucun logement correspondant." if not rows else " | ".join(
+                                        f"{r['immeuble']}, {r['type']}, {r['prix']} dollars par mois" for r in rows
+                                    )
+                                except Exception as e:
+                                    print("Erreur logements:", e)
+                                    output = "Je ne peux pas lire les annonces pour le moment."
 
-                                        if call_id:
-                                            await openai_ws.send(json.dumps({
-                                                "type": "conversation.item.create",
-                                                "item": {
-                                                    "type": "function_call_output",
-                                                    "call_id": call_id,
-                                                    "output": output
-                                                }
-                                            }))
-                                            await openai_ws.send(json.dumps({"type": "response.create"}))
+                                if call_id:
+                                    await openai_ws.send(json.dumps({
+                                        "type": "conversation.item.create",
+                                        "item": {
+                                            "type": "function_call_output",
+                                            "call_id": call_id,
+                                            "output": output
+                                        }
+                                    }))
+                                    await openai_ws.send(json.dumps({"type": "response.create"}))
                         except Exception as e:
                             print(f"Erreur outil: {e}")
             except Exception as e:
