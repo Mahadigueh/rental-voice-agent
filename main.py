@@ -3,6 +3,7 @@ import json
 import base64
 import asyncio
 import websockets
+from lire_logements import get_listings
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import HTMLResponse
 from fastapi.websockets import WebSocketDisconnect
@@ -61,6 +62,12 @@ Fin d’appel :
 - Quand le locataire dit « merci », « bonne journée », « au revoir » ou que le problème est résolu :
   1. Réponds d’abord : « Je vous en prie, bonne journée ! »
   2. Ensuite seulement utilise l’outil end_call.
+
+Logements :
+- Si la personne cherche un appartement, utilise rechercher_logements.
+- Ne cite que ce que l’outil renvoie. N’invente jamais une adresse ou un prix.
+- Donne 2 options maximum, puis demande si la personne veut une visite.
+- Pour une visite, transfère vers Martin ou Jessica.
 
 Gestionnaires :
 - Anthony : maintenance et urgences
@@ -215,6 +222,38 @@ async def handle_media_stream(websocket: WebSocket):
                                     print(f">>> Résultat fin d'appel: {success}")
                                 else:
                                     print(">>> ERREUR: call_sid est None")
+
+                                    if function_name == "rechercher_logements":
+                                        ville = arguments.get("ville", "")
+                                        type_logement = arguments.get("type_logement", "")
+                                        call_id = response.get("call_id")
+                                        print(">>> Recherche logements", ville, type_logement, "call_id:", call_id)
+
+                                        try:
+                                            rows = await asyncio.wait_for(asyncio.to_thread(get_listings), timeout=8)
+                                            if ville:
+                                                rows = [r for r in rows if ville.lower() in r["immeuble"].lower()]
+                                            if type_logement:
+                                                cherche = type_logement.replace(" ", "")
+                                                rows = [r for r in rows if cherche in r["type"].replace(" ", "")]
+                                            rows = rows[:2]
+                                            output = "Aucun logement correspondant." if not rows else " | ".join(
+                                                f"{r['immeuble']}, {r['type']}, {r['prix']} dollars par mois" for r in rows
+                                            )
+                                        except Exception as e:
+                                            print("Erreur logements:", e)
+                                            output = "Je ne peux pas lire les annonces pour le moment."
+
+                                        if call_id:
+                                            await openai_ws.send(json.dumps({
+                                                "type": "conversation.item.create",
+                                                "item": {
+                                                    "type": "function_call_output",
+                                                    "call_id": call_id,
+                                                    "output": output
+                                                }
+                                            }))
+                                            await openai_ws.send(json.dumps({"type": "response.create"}))
                         except Exception as e:
                             print(f"Erreur outil: {e}")
             except Exception as e:
@@ -265,6 +304,18 @@ async def initialize_session(openai_ws):
                         "required": ["reason"]
                     }
                 },
+                {
+    "type": "function",
+    "name": "rechercher_logements",
+    "description": "Chercher les logements disponibles sur le site SMP Direct.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "ville": {"type": "string"},
+            "type_logement": {"type": "string"}
+        }
+    }
+}
                 
             ],
             "tool_choice": "auto",
