@@ -3,6 +3,7 @@ import json
 import base64
 import asyncio
 import websockets
+from lire_logements import get_listings
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import HTMLResponse
 from fastapi.websockets import WebSocketDisconnect
@@ -34,6 +35,12 @@ print("===============================================")
 SYSTEM_MESSAGE = """
 Tu es un assistant vocal professionnel et poli pour une entreprise de gestion locative au Québec.
 Tu parles exclusivement en français québécois, de façon claire, calme et professionnelle.
+
+Logements à louer :
+- Si la personne cherche un logement, utilise l’outil rechercher_logements.
+- Ne cite que les logements renvoyés par l’outil. N’invente jamais une adresse ou un prix.
+- Donne au maximum 2 ou 3 options, puis demande si la personne veut une visite.
+- Pour une visite, transfère vers Martin ou Jessica.
 
 Comportement général :
 - Écoute le locataire jusqu’au bout avant de répondre.
@@ -216,9 +223,41 @@ async def handle_media_stream(websocket: WebSocket):
                                 else:
                                     print(">>> ERREUR: call_sid est None")
 
+                            if function_name == "rechercher_logements":
+                                ville = arguments.get("ville", "")
+                                type_logement = arguments.get("type_logement", "")
+                                call_id = response.get("call_id")
+                                print(f">>> Recherche logements | ville={ville} | type={type_logement}")
+
+                                try:
+                                    rows = get_listings()
+                                    if ville:
+                                        rows = [r for r in rows if ville.lower() in r["immeuble"].lower()]
+                                    if type_logement:
+                                        rows = [r for r in rows if type_logement.replace(" ", "") in r["type"].replace(" ", "")]
+                                    rows = rows[:3]
+                                    if not rows:
+                                        output = "Aucun logement correspondant en ce moment."
+                                    else:
+                                        output = " | ".join(
+                                            f"{r['immeuble']}, {r['type']}, {r['prix']} dollars par mois"
+                                            for r in rows
+                                        )
+                                except Exception as e:
+                                    print(f"Erreur logements: {e}")
+                                    output = "Impossible de lire les annonces pour le moment."
+
+                                await openai_ws.send(json.dumps({
+                                    "type": "conversation.item.create",
+                                    "item": {
+                                        "type": "function_call_output",
+                                        "call_id": call_id,
+                                        "output": output
+                                    }
+                                }))
+                                await openai_ws.send(json.dumps({"type": "response.create"}))
                         except Exception as e:
                             print(f"Erreur outil: {e}")
-
             except Exception as e:
                 print(f"Error in send_to_twilio: {e}")
 
@@ -266,7 +305,20 @@ async def initialize_session(openai_ws):
                         },
                         "required": ["reason"]
                     }
-                }
+                },
+                {
+    "type": "function",
+    "name": "rechercher_logements",
+    "description": "Chercher les logements disponibles sur le site SMP Direct.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "ville": {"type": "string", "description": "Québec, Lévis ou Trois-Rivières"},
+            "type_logement": {"type": "string", "description": "Exemple : 3 1/2, 4 1/2, 5 1/2"}
+        }
+    }
+}
+                
             ],
             "tool_choice": "auto",
             "audio": {
